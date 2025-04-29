@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Robot Controller & Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="roslib.min.js"></script>
+    <style>
+        :root {
+            --bg: #dde1e6;
+            --shadow-light: #ffffff;
+            --shadow-dark: #a3b1c6;
+            --primary: #6c63ff;
+            --success: #2d9e47;
+            --danger: #e03647;
+            --text: #444;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+        }
+
+        #fix {
+            position: fixed;
+        }
+
+        /* .sidebar {
+            width: 200px;
+            background: var(--bg);
+            box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+            display: flex;
+            flex-direction: column;
+            padding-top: 30px;
+        }
+
+        .sidebar a {
+            padding: 15px 20px;
+            text-decoration: none;
+            color: var(--text);
+            font-weight: bold;
+            border-radius: 12px;
+            margin: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background-color: var(--primary);
+            color: white;
+        } */
+
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .neumorphic {
+            background: var(--bg);
+            border-radius: 20px;
+            box-shadow: 9px 9px 16px var(--shadow-dark),
+                -9px -9px 16px var(--shadow-light);
+            padding: 20px;
+            margin: 20px;
+        }
+
+        h1,
+        h2 {
+            text-align: center;
+        }
+
+        .tab-section {
+            display: none;
+        }
+
+        .tab-section.active-tab {
+            display: block;
+        }
+
+        #ipAddressInput {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        input[type="text"] {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            outline: none;
+            background: var(--bg);
+            box-shadow: inset 5px 5px 10px var(--shadow-dark),
+                inset -5px -5px 10px var(--shadow-light);
+            width: 250px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        #connectButton {
+            background-color: var(--success);
+        }
+
+        #connectButton:hover {
+            background-color: #3e8e41;
+        }
+
+        #connectButton.connected {
+            background-color: var(--danger);
+        }
+
+        #connectButton.connected:hover {
+            background-color: #d20f23;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .controls-section,
+        .services-section {
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .arrows {
+            font-size: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            color: var(--primary);
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            appearance: none;
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: linear-gradient(145deg, var(--shadow-light), var(--shadow-dark));
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            height: 20px;
+            width: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        #enableButton {
+            background-color: var(--success);
+        }
+
+        #enableButton:hover {
+            background-color: #3e8e41;
+        }
+
+        #disableButton {
+            background-color: var(--danger);
+        }
+
+        #disableButton:hover {
+            background-color: #d20f23;
+        }
+
+        #setTopicButton {
+            background-color: #53cff2;
+        }
+
+        #setTopicButton:hover {
+            background-color: #21c2ef;
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1 / 1;
+            border: 1px solid black;
+            display: block;
+            margin: 15px auto 0 auto;
+        }
+
+        #connectionIndicator {
+                width: 15px;
+                height: 15px;
+                border-radius: 50%;
+                background-color: gray;
+                box-shadow: none;
+                transition: box-shadow 0.3s ease, background-color 0.3s ease;
+                margin-left: 10px;
+                display: inline-block;
+            }
+
+        #connectionIndicator.connected {
+                background-color: #4caf50;
+                /* green when connected */
+                box-shadow: 0 0 10px 2px #4caf50;
+            }
+
+
+        @media (min-width: 768px) {
+            .main-container {
+                flex-direction: row;
+                justify-content: space-evenly;
+                align-items: flex-start;
+            }
+
+            .controls-section,
+            .services-section {
+                width: 45%;
+            }
+
+            .controller-header {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+                justify-content: space-between;
+            }
+
+            @media (min-width: 768px) {
+                .controller-header {
+                    flex-direction: row;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+
+                .controller-header h1 {
+                    margin: 0;
+                    font-size: 2rem;
+                    white-space: nowrap;
+                }
+            }
+
+
+            @keyframes slide-horizontal {
+
+                0%,
+                100% {
+                    transform: translateX(0);
+                }
+
+                50% {
+                    transform: translateX(1300px);
+                    /* adjust distance as needed */
+                }
+            }
+
+            /*.robot-img.slide {
+    animation: slide-horizontal 30s ease-in-out infinite;
+    }
+
+    .touch-arrow {
+    padding: 15px;
+    background: var(--bg);
+    border-radius: 50%;
+    box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    user-select: none;
+    touch-action: manipulation;
+    }
+
+    .touch-arrow:active {
+    transform: scale(0.95);
+    box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
+    }
+
+
+    .robot-img.glow {
+    box-shadow: 0 0 20px 8px var(--primary);
+    transition: box-shadow 0.4s ease-in-out;
+    }*/
+
+
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="content">
+        <div id="homeTab" class="tab-section active-tab">
+
+            <div class="neumorphic">
+                <div class="controller-header">
+                    <h1>🤖 Robot Controller</h1>
+
+                    <div id="ipAddressInput">
+                        <input type="text" id="ipAddress" placeholder="Enter IP Address" />
+                        <button id="connectButton" onclick="toggleConnection()">Connect</button>
+                    </div>
+                    <div id="connectionIndicator"></div>
+                </div>
+            </div>
+
+            <div class="main-container">
+                <div class="controls-section neumorphic">
+                    <h2>🎮 Controls</h2>
+
+                    <p>Use arrow keys to move:</p>
+                    <div class="arrows">
+                        <div id="leftArrow" class="touch-arrow"><i class="fas fa-arrow-left"></i></div>
+                        <div id="upArrow" class="touch-arrow"><i class="fas fa-arrow-up"></i></div>
+                        <div id="downArrow" class="touch-arrow"><i class="fas fa-arrow-down"></i></div>
+                        <div id="rightArrow" class="touch-arrow"><i class="fas fa-arrow-right"></i></div>
+                    </div>
+
+
+                    <div class="slider-group">
+                        <label for="linearspeedRange">Linear Speed: <span id="linearspeedValue">0</span></label>
+                        <input type="range" id="linearspeedRange" min="0" max="1.2" step="0.1" value="0">
+                    </div>
+
+                    <div class="slider-group">
+                        <label for="angularspeedRange">Angular Speed: <span id="angularspeedValue">0</span></label>
+                        <input type="range" id="angularspeedRange" min="0" max="1.2" step="0.1" value="0">
+                    </div>
+                </div>
+
+                <div class="services-section neumorphic">
+                    <h2>🛠️ Services</h2>
+                    <!-- <img src="robot.png" alt="Robot" style="width: 120px; height: auto; margin-top: 10px;" /> -->
+                    <div class="button-group">
+                        <button id="enableButton">Start Recording</button>
+                        <button id="disableButton">Stop Recording</button>
+                    </div>
+                    <input type="text" id="messageInput" placeholder="Enter path to save map"
+                        style="margin-top:20px;" />
+                    <p></p>
+                    <input type="text" id="topicName" placeholder="Set Topic (e.g., /cmd_vel)"
+                        style="margin-top:20px;" />
+                    <button id="setTopicButton" onclick="setTopicName()">Set Topic</button>
+                </div>
+            </div>
+
+
+            <!-- <div id="scanTab">
+                <div class="neumorphic">
+                    <h2>📡 Scan Data Visualization</h2>
+                    <div id="pose" style="font-size: 18px; text-align: center;"></div>
+                    <canvas id="laserCanvas" width="500" height="500"></canvas>
+                </div>
+            </div> -->
+
+            <!-- <img src="amr.png" alt="Robot" id="robotImage" class="robot-img"
+                style="width: 70px; height: auto; margin-top: 10px;" /> -->
+
+        </div>
+    </div>
+
+    <script src="values.js"></script>
+</body>
+
+</html>
