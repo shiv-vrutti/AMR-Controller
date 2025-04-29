@@ -1,9 +1,12 @@
 let ros, cmdVelTopic, linearspeed = 0, angularspeed = 0, currentTopicName;
+let velocityInterval = null;
+let robotPose = { x: 0, y: 0, orientation: 0 }; // Made global for access in LaserScan drawing
 
 function setTopicName() {
     const topicInput = document.getElementById('topicName').value.trim();
     if (topicInput !== "") {
         currentTopicName = topicInput;
+
         if (ros && ros.isConnected) {
             cmdVelTopic = new ROSLIB.Topic({
                 ros: ros,
@@ -16,11 +19,8 @@ function setTopicName() {
     }
 }
 
-// ------------------------------------------------------------------------------------------ //
-
 function connectToRos() {
     const ipAddress = document.getElementById('ipAddress').value.trim();
-
     if (!ipAddress) return alert("Enter a valid IP");
 
     ros = new ROSLIB.Ros({ url: "ws://" + ipAddress + ":9090" });
@@ -28,58 +28,28 @@ function connectToRos() {
     ros.on('connection', () => {
         document.getElementById('connectButton').innerText = 'Disconnect';
         document.getElementById('connectButton').classList.add('connected');
-        // document.getElementById('robotImage').classList.add('slide');
-        const connectionIndicator = document.getElementById("connectionIndicator");
-        
-
-
-        //robotImage.classList.add("glow");
-        //console.log("✅ Glow class added!");
-
-
-
-
-        // rosStatus.innerText = "";
-       connectionIndicator.classList.add('connected');
+        document.getElementById('connectionIndicator').classList.add('connected');
 
         cmdVelTopic = new ROSLIB.Topic({
             ros: ros,
-            name: currentTopicName,
+            name: currentTopicName || "/cmd_vel",
             messageType: 'geometry_msgs/msg/Twist'
         });
 
-        initScanTab(); // initialize listeners if needed
+        initScanTab();
     });
 
     ros.on('error', (error) => {
-        console.error('Connection error:', error),
-            alert("Connection failed. Please check:\n- IP Address\n- ROSBridge running\n- Network\n- Port 9090 open")
-    }
-    );
-
-
-    // ------------------------------------------------------------------------------------------ //
-
+        console.error('Connection error:', error);
+        alert("Connection failed. Please check:\n- IP Address\n- ROSBridge running\n- Network\n- Port 9090 open");
+    });
 
     ros.on('close', () => {
         document.getElementById('connectButton').innerText = 'Connect';
         document.getElementById('connectButton').classList.remove('connected');
-        const connectionIndicator = document.getElementById("connectionIndicator");
-        
-
-
-        // const robotImage = document.getElementById("robotImage");
-        // robotImage.classList.remove("slide");
-        // robotImage.classList.remove("glow");
-
-
-        // rosStatus.innerText = "";
-       connectionIndicator.classList.remove('connected');
-        
+        document.getElementById('connectionIndicator').classList.remove('connected');
     });
 }
-
-// ------------------------------------------------------------------------------------------ //
 
 function toggleConnection() {
     if (ros && ros.isConnected) ros.close();
@@ -95,8 +65,6 @@ document.getElementById('angularspeedRange').addEventListener('input', (e) => {
     angularspeed = parseFloat(e.target.value);
     document.getElementById('angularspeedValue').innerText = angularspeed;
 });
-
-// ------------------------------------------------------------------------------------------ //
 
 function callSetBoolService(value) {
     if (!ros || !ros.isConnected) {
@@ -119,34 +87,52 @@ function callSetBoolService(value) {
     const request = value ? { start: true, path: path } : { start: false };
     const serviceRequest = new ROSLIB.ServiceRequest(request);
 
-    boolService.callService(serviceRequest, function (result) {
+    boolService.callService(serviceRequest, (result) => {
         alert("Service called. Success: " + result.success + " | Message: " + result.message);
     });
 }
 
-
 document.getElementById('enableButton').addEventListener('click', () => callSetBoolService(true));
 document.getElementById('disableButton').addEventListener('click', () => callSetBoolService(false));
-
-// ------------------------------------------------------------------------------------------ //
 
 const activeKeys = new Set();
 
 document.addEventListener('keydown', (e) => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         e.preventDefault();
+        const initialSize = activeKeys.size;
         activeKeys.add(e.key);
-        publishVelocity();
+
+        if (initialSize === 0) {
+            startPublishing();
+        }
     }
 });
 
 document.addEventListener('keyup', (e) => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         activeKeys.delete(e.key);
-        publishVelocity();
+
+        if (activeKeys.size === 0) {
+            stopPublishing();
+        }
     }
 });
 
+function startPublishing() {
+    if (!velocityInterval) {
+        publishVelocity();  
+        velocityInterval = setInterval(publishVelocity, 100); 
+    }
+}
+
+function stopPublishing() {
+    if (velocityInterval) {
+        clearInterval(velocityInterval);
+        velocityInterval = null;
+        publishZeroVelocity(); 
+    }
+}
 
 function publishVelocity() {
     if (!ros || !ros.isConnected || !cmdVelTopic) return;
@@ -162,7 +148,6 @@ function publishVelocity() {
     if (forward) linearX = linearspeed;
     else if (reverse) linearX = -linearspeed;
 
-    // Adjust angular direction depending on forward or reverse motion
     if (turnLeft) {
         angularZ = reverse ? -angularspeed : angularspeed;
     }
@@ -178,15 +163,23 @@ function publishVelocity() {
     cmdVelTopic.publish(moveMsg);
 }
 
+function publishZeroVelocity() {
+    if (!ros || !ros.isConnected || !cmdVelTopic) return;
 
-// ------------------------------------------------------------------------------------------ //
+    const stopMsg = new ROSLIB.Message({
+        linear: { x: 0, y: 0, z: 0 },
+        angular: { x: 0, y: 0, z: 0 }
+    });
+
+    cmdVelTopic.publish(stopMsg);
+}
 
 function initScanTab() {
     if (!ros || !ros.isConnected) return;
 
     const poseListener = new ROSLIB.Topic({
         ros: ros,
-        name: '/odom', // /diff_drive_controller/odom
+        name: '/odom',
         messageType: 'nav_msgs/Odometry'
     });
 
@@ -194,8 +187,10 @@ function initScanTab() {
         const p = msg.pose.pose.position;
         const o = msg.pose.pose.orientation;
         robotPose = { x: p.x, y: p.y, orientation: quaternionToYaw(o) };
-        document.getElementById('pose').innerText =
-            `Pose → X: ${robotPose.x.toFixed(2)} | Y: ${robotPose.y.toFixed(2)} | θ: ${robotPose.orientation.toFixed(2)}`;
+
+        const poseText = `Pose → X: ${robotPose.x.toFixed(2)} | Y: ${robotPose.y.toFixed(2)} | θ: ${robotPose.orientation.toFixed(2)}`;
+        const poseElem = document.getElementById('pose');
+        if (poseElem) poseElem.innerText = poseText;
     });
 
     const laserListener = new ROSLIB.Topic({
@@ -204,10 +199,10 @@ function initScanTab() {
         messageType: 'sensor_msgs/LaserScan'
     });
 
-    // ------------------------------------------------------------------------------------------ //
-
     laserListener.subscribe((msg) => {
         const canvas = document.getElementById('laserCanvas');
+        if (!canvas) return;
+
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -231,4 +226,10 @@ function initScanTab() {
             }
         });
     });
+}
+
+function quaternionToYaw(q) {
+    const siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+    const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+    return Math.atan2(siny_cosp, cosy_cosp);
 }
