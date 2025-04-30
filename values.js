@@ -100,10 +100,13 @@ const activeKeys = new Set();
 document.addEventListener('keydown', (e) => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         e.preventDefault();
-        const initialSize = activeKeys.size;
+        const alreadyHeld = activeKeys.has(e.key);
+        const prevSize = activeKeys.size;
         activeKeys.add(e.key);
 
-        if (initialSize === 0) {
+        if (!alreadyHeld) publishVelocity(); // ← force publish when key state changes
+
+        if (prevSize === 0) {
             startPublishing();
         }
     }
@@ -112,6 +115,7 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         activeKeys.delete(e.key);
+        publishVelocity(); // key released, update velocity
 
         if (activeKeys.size === 0) {
             stopPublishing();
@@ -121,8 +125,8 @@ document.addEventListener('keyup', (e) => {
 
 function startPublishing() {
     if (!velocityInterval) {
-        publishVelocity();  
-        velocityInterval = setInterval(publishVelocity, 100); 
+        publishVelocity();
+        velocityInterval = setInterval(publishVelocity, 30); // Faster updates
     }
 }
 
@@ -130,7 +134,7 @@ function stopPublishing() {
     if (velocityInterval) {
         clearInterval(velocityInterval);
         velocityInterval = null;
-        publishZeroVelocity(); 
+        publishZeroVelocity();
     }
 }
 
